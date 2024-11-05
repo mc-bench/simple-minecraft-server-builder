@@ -1,0 +1,14 @@
+[
+  {
+    "uuid": "323009e2-a518-30f8-8072-9a10edf92d90",
+    "name": "huntcsg",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  },
+  {
+    "uuid": "373a78af-be67-3500-a35e-d1bfd97e3289",
+    "name": "Builder",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  }
+]
