@@ -7,6 +7,17 @@ This is a simple demo repo that includes:
 * a template running (builds/template.js)
 * a directory to put builds
 
+# Installation
+
+Before getting started, install the required dependencies:
+
+```shell
+npm install
+```
+or
+```shell
+bun install
+```
 
 # How to use this repo
 
