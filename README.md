@@ -46,6 +46,8 @@ it may be helpful to also do the same for the `Builder` user, which is the user 
 > read escape sequence
 ```
 
+**Note:** If you're using VSCode or another IDE, the ctrl+p+q keybinding might conflict with editor shortcuts. You may need to temporarily disable or rebind conflicting keyboard shortcuts in your editor / docker settings.
+
 6. Using the prompt template and your favorite LLM chatbot, prompt for a creation
 
 7. Copy the `builds/template.js` to something like `builds/house.js` and overwrite the function `buildCreation` with the generated code
