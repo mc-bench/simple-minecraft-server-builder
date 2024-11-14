@@ -7,6 +7,21 @@ This is a simple demo repo that includes:
 * a template running (builds/template.js)
 * a directory to put builds
 
+# Example Build
+
+The `builds/house.js` provides an example of a complete building script that creates a simple house structure. You can use this as a reference for how the building functions work and what a completed script looks like.
+
+# Installation
+
+Before getting started, install the required dependencies:
+
+```shell
+npm install
+```
+or
+```shell
+bun install
+```
 
 # How to use this repo
 
@@ -35,13 +50,33 @@ it may be helpful to also do the same for the `Builder` user, which is the user 
 > read escape sequence
 ```
 
-6. Using the prompt template and your favorite LLM chatbot, prompt for a creation
+**Note:** If you're using VSCode or another IDE, the ctrl+p+q keybinding might conflict with editor shortcuts. You may need to temporarily disable or rebind conflicting keyboard shortcuts in your editor / docker settings.
 
-7. Copy the `builds/template.js` to something like `builds/house.js` and overwrite the function `buildCreation` with the generated code
+6. Using your favorite LLM chatbot, create a building script by providing it with:
+   - The desired structure you want to build
+   - The template function signature: `async function buildCreation(startX, startY, startZ)`
+   - The available helper functions: `safeSetBlock()` and `safeFill()`
 
-8.Run the script (you must use npm >=18, so consider using `nvm` like `nvm use 18`) like:
-```shell
-DELAY=50 STRUCTURE_NAME=someStructureName node builds/house.js
-```
+7. Create a new build file:
+   ```shell
+   cp builds/template.js builds/your-structure.js
+   ```
 
-9. You can find the nbt file for your structure at `data/world/generated/minecraft/structures` with whatever name you passed as the `STRUCTURE_NAME`
+   Then replace the empty `buildCreation` function with your generated code:
+   ```javascript
+   async function buildCreation(startX, startY, startZ) {
+     // Your generated building code here
+   }
+   ```
+
+8. Run your structure script:
+   ```shell
+   # The DELAY controls block placement speed (milliseconds)
+   # STRUCTURE_NAME sets the .nbt file name
+   DELAY=50 STRUCTURE_NAME=my_awesome_house node builds/your-structure.js
+   ```
+
+9. Find your structure's NBT file at:
+   ```
+   data/world/generated/minecraft/structures/my_awesome_house.nbt
+   ```
