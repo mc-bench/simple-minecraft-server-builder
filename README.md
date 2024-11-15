@@ -9,7 +9,10 @@ This is a simple demo repo that includes:
 
 # Example Build
 
-The `builds/house.js` provides an example of a complete building script that creates a simple house structure. You can use this as a reference for how the building functions work and what a completed script looks like.
+The repository includes two key files for building structures:
+
+* `builds/template.js` - A blank template with the basic structure and helper functions. It includes pre-configured connection settings to the Minecraft server and utility functions like `safeSetBlock()` and `safeFill()` for placing blocks. The file handles all the server connection logic, NBT file generation, and graceful cleanup when the build is complete.
+* `builds/house_function.js` - An example building function that creates a simple house structure. To try it out, copy its contents into the `buildCreation()` function in `template.js` and run the template file following the instructions below.
 
 # Installation
 
