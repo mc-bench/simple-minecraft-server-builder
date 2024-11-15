@@ -1,13 +1,13 @@
-const express = require("express");
-const nbt = require("prismarine-nbt");
-const { promises: fs } = require("fs");
-const path = require("path");
+import express from "express";
+import { parse } from "prismarine-nbt";
+import { promises as fs } from "fs";
+import { join } from "path";
 const app = express();
 const port = 3005;
 
 app.get("/structure", async (req, res) => {
   try {
-    const structuresPath = path.join(
+    const structuresPath = join(
       __dirname,
       "../data/world/generated/minecraft/structures"
     );
@@ -20,8 +20,8 @@ app.get("/structure", async (req, res) => {
     // Parse all NBT files
     const structures = await Promise.all(
       nbtFiles.map(async (filename) => {
-        const nbtData = await fs.readFile(path.join(structuresPath, filename));
-        const { parsed } = await nbt.parse(nbtData);
+        const nbtData = await fs.readFile(join(structuresPath, filename));
+        const { parsed } = await parse(nbtData);
         console.log(`Processed: ${filename}`);
         return {
           name: filename,
