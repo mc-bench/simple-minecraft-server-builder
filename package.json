@@ -4,5 +4,6 @@
   "dependencies": {
     "mineflayer": "^4.22.0",
     "mineflayer-gui": "^3.0.2"
-  }
+  },
+  "type": "module"
 }
