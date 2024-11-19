@@ -1,0 +1,19 @@
+{
+  "name": "exporter",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-canvas-webgl": "^0.3.0",
+    "prismarine-schematic": "^1.1.2",
+    "prismarine-viewer": "^1.28.0",
+    "three-gltf-exporter": "rom1504/three-gltf-exporter",
+    "three-stlexporter": "rom1504/three-STLexporter",
+    "vblob": "1.0.2"
+  }
+}
