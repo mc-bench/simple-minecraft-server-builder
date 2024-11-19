@@ -1,22 +1,24 @@
-import { readFile, writeFile, readdir, mkdir } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import struct2schem from "struct2schem";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const STRUCTURES_PATH = join(
+// Note - this script will not work with bun, use node instead
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STRUCTURES_PATH = path.join(
   __dirname,
   "../data/world/generated/minecraft/structures"
 );
-const SCHEMATICS_PATH = join(__dirname, "../schematics");
+const SCHEMATICS_PATH = path.join(__dirname, "../schematics");
 
 async function convertStructures() {
   try {
     console.log("Reading structure files...");
 
-    await mkdir(SCHEMATICS_PATH, { recursive: true });
+    await fs.mkdir(SCHEMATICS_PATH, { recursive: true });
 
-    const files = await readdir(STRUCTURES_PATH);
+    const files = await fs.readdir(STRUCTURES_PATH);
     const nbtFiles = files.filter((file) => file.endsWith(".nbt"));
 
     console.log(`Found ${nbtFiles.length} NBT files to process...`);
@@ -25,11 +27,13 @@ async function convertStructures() {
       try {
         console.log(`Converting ${filename}...`);
 
-        const structureData = await readFile(join(STRUCTURES_PATH, filename));
+        const structureData = await fs.readFile(
+          path.join(STRUCTURES_PATH, filename)
+        );
         const schematicData = await struct2schem.default(structureData);
         const outputName = filename.replace(".nbt", ".schem");
-        const outputPath = join(SCHEMATICS_PATH, outputName);
-        await writeFile(outputPath, schematicData);
+        const outputPath = path.join(SCHEMATICS_PATH, outputName);
+        await fs.writeFile(outputPath, schematicData);
 
         console.log(`Successfully converted ${filename} to ${outputName}`);
       } catch (error) {
