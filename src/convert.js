@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import struct2schem from "struct2schem";
 
 // Note - this script will not work with bun, use node instead
+// It works on more modern versions of node in my testing, but if you have issues, downgrade to node 16.20.2
+// This will take all the .nbt files in the structures directory and convert them to .schem files in the schematics directory
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRUCTURES_PATH = path.join(
