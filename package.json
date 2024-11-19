@@ -1,9 +1,29 @@
 {
   "name": "simple-minecraft-server-builder",
   "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "dependencies": {
     "mineflayer": "^4.22.0",
-    "mineflayer-gui": "^3.0.2"
-  },
-  "type": "module"
+    "mineflayer-gui": "^3.0.2",
+    "@types/three": "^0.160.0",
+    "canvas": "^2.11.2",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.3",
+    "gl": "^8.1.6",
+    "minecraft-assets": "^1.12.2",
+    "minecraft-data": "^3.60.0",
+    "node-canvas-webgl": "^0.3.0",
+    "prismarine-block": "^1.19.0",
+    "prismarine-chunk": "^1.35.0",
+    "prismarine-nbt": "^2.2.1",
+    "prismarine-viewer": "^1.28.0",
+    "prismarine-world": "^3.6.3",
+    "three": "^0.160.0",
+    "three-gltf-exporter": "^0.0.1",
+    "vblob": "^1.1.0",
+    "vec3": "^0.1.8"
+  }
 }
