@@ -1,15 +1,14 @@
+// `cd src` and then run `node nbt-gltf.js`
 import * as THREE from 'three'
 import { createCanvas, ImageData } from 'canvas'
 import { loadImage } from 'node-canvas-webgl/lib/index.js'
 import gl from 'gl'
 import { promises as fs } from 'fs'
 import { Vec3 } from 'vec3'
-import prismarineViewer from 'prismarine-viewer'
 import { parse, simplify } from 'prismarine-nbt'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import mcAssets from 'minecraft-assets'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { Blob, FileReader } from 'vblob'
 
 // Polyfills for GLTF export and canvas
