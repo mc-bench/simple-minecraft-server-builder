@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "dependencies": {
     "mineflayer": "^4.22.0",
-    "mineflayer-gui": "^3.0.2"
+    "mineflayer-gui": "^3.0.2",
+    "struct2schem": "^1.0.1"
   },
   "type": "module"
 }

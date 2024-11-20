@@ -10,5 +10,11 @@
     "name": "Builder",
     "level": 4,
     "bypassesPlayerLimit": false
+  },
+  {
+    "uuid": "19a7c5a6-ac6f-3101-b1f2-95c7343607ef",
+    "name": "Eye2Eye",
+    "level": 4,
+    "bypassesPlayerLimit": false
   }
 ]
