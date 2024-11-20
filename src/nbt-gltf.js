@@ -7,13 +7,10 @@ import { Vec3 } from 'vec3'
 import prismarineViewer from 'prismarine-viewer'
 import { parse, simplify } from 'prismarine-nbt'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
-import prismarineBlock from 'prismarine-block'
 import mcAssets from 'minecraft-assets'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { Blob, FileReader } from 'vblob'
-import { createWriteStream } from 'fs';
-import { pipeline } from 'stream/promises';
 
 // Polyfills for GLTF export and canvas
 global.Blob = Blob
@@ -22,10 +19,7 @@ global.ImageData = ImageData
 global.Image = loadImage
 global.performance = { now: () => Date.now() }
 
-const { viewer: PrismarineViewer } = prismarineViewer
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const VERSION = '1.20.1'
+const VERSION = '1.20.2'
 const VIEWPORT = {
   width: 1024,
   height: 1024,
@@ -92,176 +86,109 @@ class EnhancedMockWorker {
     this.meshes = new Map()
     this.atlas = null
     this.uvMapping = {}
+    this.blockStates = null
     
-    // Remove bind and directly define postMessage
-    this.postMessage = (data) => {
-      this.handleMessage(data)
-    }
+    this.handleMessage = this.handleMessage.bind(this)
+    this.postMessage = this.handleMessage
   }
 
   handleMessage(data) {
     if (data.type === 'add_mesh') {
       this.addMesh(data)
+    } else {
+      console.warn('Unknown message type:', data.type)
     }
   }
 
-  setAtlas(atlas, uvMapping = {}) {
+  setAtlas(atlas, uvMapping, blockStates) {
     this.atlas = atlas
     this.uvMapping = uvMapping
+    this.blockStates = blockStates
+    console.log('Atlas set with:', {
+      hasAtlas: !!atlas,
+      mappingCount: Object.keys(uvMapping).length,
+      statesCount: Object.keys(blockStates || {}).length
+    })
   }
 
   getBlockState(blockId) {
     const block = this.mcData.blocks[blockId]
     if (!block) return null
 
-    const blockState = this.mcData.blockStates[blockId]
+    // Get block state from our loaded states
+    const blockState = this.blockStates[block.name]
     if (!blockState) {
-      return {
-        name: block.name,
-        variants: {
-          "normal": {
-            model: {
-              textures: {
-                all: `block/${block.name}`
-              }
-            }
-          }
-        }
-      }
+      console.warn(`No block state found for ${block.name}`)
+      return null
     }
+
     return blockState
   }
 
-  createMaterial(blockId) {
-    const blockState = this.getBlockState(blockId)
-    if (!blockState || !this.atlas) {
-      console.warn(`No block state or atlas for block ${blockId}`)
-      return new THREE.MeshStandardMaterial({ color: 0x808080 })
-    }
+  getTextureForBlock(blockName, textureType = 'all') {
+    // Try different texture naming patterns
+    const patterns = [
+      `${blockName}`,                    // Basic name
+      `${blockName}_${textureType}`,     // With type suffix
+      blockName.replace('_block', ''),   // Without _block suffix
+      blockName.split('_')[0],           // Base material name
+    ]
 
-    // Get the block name and textures
-    const block = this.mcData.blocks[blockId]
-    if (!block) {
-      console.warn(`No block data for id ${blockId}`)
-      return new THREE.MeshStandardMaterial({ color: 0x808080 })
-    }
-
-    // Special case texture mappings
-    const textureMapping = {
-      // Wood variants
-      'oak_stairs': 'oak_planks',
-      'dark_oak_stairs': 'dark_oak_planks',
-      'birch_stairs': 'birch_planks',
-      'spruce_stairs': 'spruce_planks',
-      'jungle_stairs': 'jungle_planks',
-      'acacia_stairs': 'acacia_planks',
-      
-      // Grass and dirt
-      'grass_block': ['grass_block_side', 'grass_block_top', 'dirt'],
-      'dirt_path': ['dirt_path_side', 'dirt_path_top'],
-      
-      // Beds
-      'red_bed': ['red_bed_head_side', 'red_bed_head_top'],
-      'black_bed': ['black_bed_head_side', 'black_bed_head_top'],
-      'blue_bed': ['blue_bed_head_side', 'blue_bed_head_top'],
-      'brown_bed': ['brown_bed_head_side', 'brown_bed_head_top'],
-      'cyan_bed': ['cyan_bed_head_side', 'cyan_bed_head_top'],
-      'gray_bed': ['gray_bed_head_side', 'gray_bed_head_top'],
-      'green_bed': ['green_bed_head_side', 'green_bed_head_top'],
-      'light_blue_bed': ['light_blue_bed_head_side', 'light_blue_bed_head_top'],
-      'light_gray_bed': ['light_gray_bed_head_side', 'light_gray_bed_head_top'],
-      'lime_bed': ['lime_bed_head_side', 'lime_bed_head_top'],
-      'magenta_bed': ['magenta_bed_head_side', 'magenta_bed_head_top'],
-      'orange_bed': ['orange_bed_head_side', 'orange_bed_head_top'],
-      'pink_bed': ['pink_bed_head_side', 'pink_bed_head_top'],
-      'purple_bed': ['purple_bed_head_side', 'purple_bed_head_top'],
-      'white_bed': ['white_bed_head_side', 'white_bed_head_top'],
-      'yellow_bed': ['yellow_bed_head_side', 'yellow_bed_head_top'],
-
-      // Stone variants
-      'stone_stairs': 'stone',
-      'cobblestone_stairs': 'cobblestone',
-      'mossy_cobblestone_stairs': 'mossy_cobblestone',
-      'stone_brick_stairs': 'stone_bricks',
-      'mossy_stone_brick_stairs': 'mossy_stone_bricks',
-      
-      // Other materials
-      'sandstone_stairs': ['sandstone_top', 'sandstone_side'],
-      'smooth_sandstone_stairs': 'sandstone_top',
-      'brick_stairs': 'bricks',
-      'nether_brick_stairs': 'nether_bricks',
-      'quartz_stairs': ['quartz_block_top', 'quartz_block_side'],
-      'prismarine_stairs': 'prismarine',
-      'prismarine_brick_stairs': 'prismarine_bricks'
-    }
-
-    // Get all possible texture names for this block
-    let possibleTextures = textureMapping[block.name] || [block.name];
-    if (!Array.isArray(possibleTextures)) {
-      possibleTextures = [possibleTextures];
-    }
-
-    // Try to find a valid texture from the possible options
-    let uvs = null;
-    let usedTexture = null;
-
-    for (const textureName of possibleTextures) {
-      // Try different variations of the texture name
-      const variations = [
-        textureName,
-        `${textureName}_side`,
-        `${textureName}_top`,
-        `${textureName}_bottom`,
-        textureName.replace('block_', '')  // Try without 'block_' prefix
-      ];
-
-      for (const variant of variations) {
-        if (this.uvMapping[variant]) {
-          uvs = this.uvMapping[variant];
-          usedTexture = variant;
-          break;
+    for (const pattern of patterns) {
+      if (this.uvMapping[pattern]) {
+        return {
+          uvs: this.uvMapping[pattern],
+          name: pattern
         }
       }
-
-      if (uvs) break;
     }
 
-    console.log(`Looking for texture: ${block.name}`, {
-      blockName: block.name,
-      possibleTextures,
-      foundTexture: usedTexture,
-      hasMapping: !!uvs,
-      availableMappings: Object.keys(this.uvMapping).slice(0, 5)
-    });
+    // Log the failure to find a texture
+    console.warn(`No texture found for ${blockName} (${textureType}) in available textures:`, 
+      Object.keys(this.uvMapping).filter(k => k.includes(blockName.split('_')[0])))
+    
+    return null
+  }
 
-    if (!uvs) {
-      console.warn(`No UV mapping found for ${block.name} with textures:`, possibleTextures);
-      return new THREE.MeshStandardMaterial({ color: 0xcccccc });
+  createMaterial(blockId) {
+    const block = this.mcData.blocks[blockId]
+    if (!block || !this.atlas) {
+      console.warn(`Unable to create material for block ${blockId}`)
+      return new THREE.MeshStandardMaterial({ color: 0x808080 })
     }
 
-    // Create material with texture
+    // Get texture info
+    const textureInfo = this.getTextureForBlock(block.name)
+    if (!textureInfo) {
+      console.warn(`No texture found for ${block.name}`)
+      return new THREE.MeshStandardMaterial({ color: 0x808080 })
+    }
+
+    // Create material
     const material = new THREE.MeshStandardMaterial({
       map: this.atlas.clone(),
+      transparent: block.transparent || false,
+      alphaTest: block.transparent ? 0.1 : 0,
+      side: THREE.FrontSide,
       roughness: 1.0,
-      metalness: 0.0,
-      transparent: false,
-      side: THREE.FrontSide
-    });
+      metalness: 0.0
+    })
 
-    material.map.repeat.set(uvs.width, uvs.height);
-    material.map.offset.set(uvs.x, uvs.y);
-    material.map.needsUpdate = true;
+    // Set UV mapping
+    const { uvs } = textureInfo
+    material.map.repeat.set(uvs.width, uvs.height)
+    material.map.offset.set(uvs.x, uvs.y)
+    material.map.needsUpdate = true
 
-    console.log(`Created material for ${block.name}`, {
-      usedTexture,
-      hasTexture: !!material.map,
-      uvs: uvs
-    });
+    return material
+  }
 
-    return material;
-}
-
-addMesh(data) {
+  addMesh(data) {
+    console.log('Adding mesh:', {
+      chunkPos: `${data.x},${data.z}`,
+      blockCount: data.blocks?.length || 0
+    })
+    
     const { x, z, blocks } = data
     
     // Group blocks by type for batch processing
@@ -278,13 +205,13 @@ addMesh(data) {
     // Process each block type
     for (const [blockType, typeBlocks] of blocksByType) {
       const blockName = this.mcData.blocks[blockType]?.name
-      if (!blockName) continue
-
-      console.log(`Creating mesh for block type: ${blockName}`)
+      if (!blockName) {
+        console.warn(`Unknown block type: ${blockType}`)
+        continue
+      }
 
       // Create geometry with proper face orientation
       const geometry = new THREE.BoxGeometry(1, 1, 1)
-      
       const material = this.createMaterial(blockType)
 
       // Create instanced mesh for better performance
@@ -308,13 +235,17 @@ addMesh(data) {
       instancedMesh.castShadow = true
       instancedMesh.receiveShadow = true
       
-      // Store the mesh for cleanup
+      // Store mesh for cleanup
       const meshId = `${x},${z},${blockType}`
       if (this.meshes.has(meshId)) {
         const oldMesh = this.meshes.get(meshId)
         this.scene.remove(oldMesh)
         oldMesh.geometry.dispose()
-        oldMesh.material.dispose()
+        if (Array.isArray(oldMesh.material)) {
+          oldMesh.material.forEach(m => m.dispose())
+        } else {
+          oldMesh.material.dispose()
+        }
       }
       
       this.meshes.set(meshId, instancedMesh)
@@ -523,7 +454,6 @@ const exportGLTF = (scene, fileName) => {
   })
 }
 
-
 // Initialize Minecraft modules
 const initMinecraftModules = async () => {
   const [worldModule, chunkModule, blockModule, mcDataModule] = await Promise.all([
@@ -658,88 +588,141 @@ const processNBT = async (buffer, { World, Chunk, Block, mcData }) => {
 }
 
 const createTextureAtlas = async (assets) => {
-  console.log('Debug assets:', {
-    hasAssets: !!assets,
-    directory: assets?.directory,
-    textureCount: assets?.textureContent ? Object.keys(assets.textureContent).length : 0
-  });
-
-  const ATLAS_SIZE = 2048 // Increased atlas size
-  const atlasCanvas = createCanvas(ATLAS_SIZE, ATLAS_SIZE)
-  const ctx = atlasCanvas.getContext('2d')
-  const textures = {}
-
-  ctx.fillStyle = 'rgba(0,0,0,0)'
-  ctx.fillRect(0, 0, ATLAS_SIZE, ATLAS_SIZE)
-
-  const uvMapping = {}
-  let x = 0
-  let y = 0
-
-  const size = 16  // texture size
-  const rowHeight = size
-
   try {
-    const blocksDir = path.join(assets.directory, 'blocks')
-    const textureFiles = await fs.readdir(blocksDir)
-    
-    for (const file of textureFiles) {
-      if (!file.endsWith('.png')) continue
-      
-      try {
-        const textureName = path.basename(file, '.png')
-        const imagePath = path.join(blocksDir, file)
-        const image = await loadImage(imagePath)
+    // Load block textures JSON as an array
+    const blocksTexturesPath = path.join(assets.directory, 'blocks_textures.json')
+    const textureArray = JSON.parse(await fs.readFile(blocksTexturesPath, 'utf8'))
 
-        // Draw the texture to the atlas
-        ctx.drawImage(image, x, y, TEXTURE_SIZE, TEXTURE_SIZE)
-        
-        // Store UV coordinates (normalized 0-1 range)
-        uvMapping[textureName] = {
-          x: x / ATLAS_SIZE,
-          y: y / ATLAS_SIZE,
-          width: TEXTURE_SIZE / ATLAS_SIZE,
-          height: TEXTURE_SIZE / ATLAS_SIZE
+    const ATLAS_SIZE = 2048
+    const TEXTURE_SIZE = 16
+    
+    const atlasCanvas = createCanvas(ATLAS_SIZE, ATLAS_SIZE)
+    const ctx = atlasCanvas.getContext('2d')
+    ctx.clearRect(0, 0, ATLAS_SIZE, ATLAS_SIZE)
+
+    const uvMapping = {}
+    let x = 0
+    let y = 0
+    let processedCount = 0
+
+    // Process each texture entry in the array
+    for (const entry of textureArray) {
+      try {
+        // Skip entries with no texture
+        if (!entry.texture || entry.texture === 'null' || entry.name === 'air') {
+          continue
         }
 
-        // Move to next position
-        x += TEXTURE_SIZE
-        if (x + TEXTURE_SIZE > ATLAS_SIZE) {
-          x = 0
-          y += TEXTURE_SIZE
+        const isItem = entry.texture.includes('item/')
+        const baseDir = isItem ? 'items' : 'blocks'
+
+        const texturePath = entry.texture
+          .replace('minecraft:blocks/', '')
+          .replace('minecraft:item/', '')
+          .replace('blocks/', '')
+          .replace('item/', '')
+
+        const blockName = entry.name
+        // Use the appropriate directory in the path
+        const fullTexturePath = path.join(assets.directory, baseDir, `${texturePath}.png`)
+        
+        try {
+          const image = await loadImage(fullTexturePath)
+          
+          // Draw texture to atlas
+          ctx.drawImage(image, x, y, TEXTURE_SIZE, TEXTURE_SIZE)
+
+          // Store UV mapping using block name
+          uvMapping[blockName] = {
+            x: x / ATLAS_SIZE,
+            y: y / ATLAS_SIZE,
+            width: TEXTURE_SIZE / ATLAS_SIZE,
+            height: TEXTURE_SIZE / ATLAS_SIZE
+          }
+
+          // Move to next position
+          x += TEXTURE_SIZE
+          if (x + TEXTURE_SIZE > ATLAS_SIZE) {
+            x = 0
+            y += TEXTURE_SIZE
+            if (y + TEXTURE_SIZE > ATLAS_SIZE) {
+              console.warn('Atlas size exceeded')
+              break
+            }
+          }
+
+          processedCount++
+
+        } catch (error) {
+          console.warn(`Failed to load texture for ${blockName} at ${fullTexturePath}`)
         }
       } catch (error) {
-        console.warn(`Failed to process texture ${file}:`, error)
+        console.warn(`Failed to process texture entry:`, error)
       }
     }
 
-    const atlas = new THREE.CanvasTexture(atlasCanvas)
-    atlas.magFilter = THREE.NearestFilter
-    atlas.minFilter = THREE.NearestFilter
-    atlas.generateMipmaps = false
-    atlas.userData = { uvMapping }
-    atlas.needsUpdate = true
+    console.log('Texture processing complete:', {
+      processedCount,
+      mappingCount: Object.keys(uvMapping).length
+    })
 
-    return atlas
+    // Create Three.js texture
+    const textureAtlas = new THREE.CanvasTexture(atlasCanvas)
+    textureAtlas.magFilter = THREE.NearestFilter
+    textureAtlas.minFilter = THREE.NearestFilter
+    textureAtlas.generateMipmaps = false
+    textureAtlas.flipY = false
+    textureAtlas.needsUpdate = true
+
+    // Store mapping data
+    textureAtlas.userData = {
+      uvMapping,
+      textureSize: TEXTURE_SIZE,
+      atlasSize: { width: ATLAS_SIZE, height: ATLAS_SIZE }
+    }
+
+    // Create block states
+    const blockStates = {}
+    for (const [blockName, uvs] of Object.entries(uvMapping)) {
+      blockStates[blockName] = {
+        variants: {
+          "normal": {
+            model: {
+              textures: {
+                all: blockName,
+                top: blockName,
+                side: blockName,
+                bottom: blockName
+              }
+            }
+          }
+        },
+        name: blockName
+      }
+    }
+
+    return {
+      atlas: textureAtlas,
+      uvMapping,
+      blockStates,
+      textureSize: TEXTURE_SIZE
+    }
+
   } catch (error) {
-    console.error('Error creating texture atlas:', error)
+    console.error('Error in texture atlas creation:', error)
     throw error
   }
 }
 
 const main = async () => {
   try {
-    console.log('Setting up environment...')
-    setupGlobalEnv()
+    setupGlobalEnv() // start environment
     
-    console.log('Initializing renderer...')
-    const renderer = initRenderer()
+    const renderer = initRenderer() // initialize rendering
     
     console.log('Initializing Minecraft modules...')
     const mcModules = await initMinecraftModules()
-    console.log('Minecraft modules initialized:', Object.keys(mcModules))
     
-    console.log('Creating viewer...')
     const viewer = {
       scene: new THREE.Scene(),
       camera: new THREE.PerspectiveCamera(75, VIEWPORT.width / VIEWPORT.height, 0.1, 1000),
@@ -758,262 +741,69 @@ const main = async () => {
         return true
       },
       listen: (worldView) => {
-        // Add any necessary event listeners here
       }
     }
 
-    console.log('Setting version...')
     if (!await viewer.setVersion(VERSION)) {
       throw new Error('Failed to set version')
     }
-    console.log('Version set successfully')
 
     console.log('Reading NBT file...')
     const buffer = await fs.readFile('./public/my_awesome_house.nbt')
-    console.log('NBT file read successfully, size:', buffer.length)
 
     // Load Minecraft assets
-    console.log('Loading Minecraft assets...')
     const assets = mcAssets(VERSION)
-    console.log('Assets loaded:', {
-      version: VERSION,
-      directory: assets?.directory,
-      exists: !!assets
-    })
+    const { atlas, uvMapping, blockStates } = await createTextureAtlas(assets)
+    const { world, size } = await processNBT(buffer, mcModules)
+    console.log('NBT data processed. Structure size:', size)
+    
+    const center = new Vec3(
+      Math.floor(size.x / 2),
+      Math.floor(size.y / 2),
+      Math.floor(size.z / 2)
+    )
+    setupScene(viewer, size)
+    
+    const worldView = new EnhancedWorldView(
+      world,
+      VIEWPORT.viewDistance,
+      center,
+      viewer.scene,
+      mcModules.mcData
+    )
 
-    // Inside main function, replace the texture atlas creation section:
-    console.log('Creating enhanced texture atlas...')
-    const ATLAS_SIZE = 2048
+    // Set the atlas and mappings
+    worldView.worker.setAtlas(atlas, uvMapping, blockStates)
 
+    await worldView.init(center)
+    viewer.listen(worldView)
+    
+    console.log('Generating meshes...')
+    const meshCount = await worldView.generateMeshes()
+    console.log('Meshes generated:', meshCount)
+    
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    
+    // Render and export
+    const fileName = `structure_${Date.now()}.gltf`
+    
     try {
-      const blocksDir = path.join(assets.directory, 'blocks')
-      const textureFiles = await fs.readdir(blocksDir)
-      console.log(`Found ${textureFiles.length} texture files`)
-
-      // Load first texture to determine size
-      const sampleTexturePath = path.join(blocksDir, textureFiles[0])
-      const sampleTexture = await loadImage(sampleTexturePath)
-      const TEXTURE_SIZE = sampleTexture.width
-      console.log(`Detected texture size: ${TEXTURE_SIZE}x${TEXTURE_SIZE}`)
-
-      // Calculate atlas dimensions to fit all textures
-      const texturesPerRow = Math.floor(ATLAS_SIZE / TEXTURE_SIZE)
-      const textureRows = Math.ceil(textureFiles.length / texturesPerRow)
-      const actualAtlasHeight = Math.min(ATLAS_SIZE, textureRows * TEXTURE_SIZE)
-
-      console.log('Atlas dimensions:', {
-        width: ATLAS_SIZE,
-        height: actualAtlasHeight,
-        texturesPerRow,
-        totalRows: textureRows
-      })
-
-      const atlasCanvas = createCanvas(ATLAS_SIZE, actualAtlasHeight)
-      const ctx = atlasCanvas.getContext('2d')
+      renderer.render(viewer.scene, viewer.camera)
+      console.log('Render complete')
       
-      // Clear canvas with transparency
-      ctx.clearRect(0, 0, ATLAS_SIZE, actualAtlasHeight)
-
-      const uvMapping = {}
-      const blockTextures = {}
-      let x = 0
-      let y = 0
-      let processedCount = 0
-
-      // Process each texture file
-      for (const file of textureFiles) {
-        if (!file.endsWith('.png')) continue
-        
-        try {
-          const textureName = path.basename(file, '.png')
-          const imagePath = path.join(blocksDir, file)
-          const image = await loadImage(imagePath)
-
-          // Draw texture
-          ctx.drawImage(image, x, y, TEXTURE_SIZE, TEXTURE_SIZE)
-          
-          // Store UV coordinates (normalized 0-1 coordinates)
-          const uvCoords = {
-            x: x / ATLAS_SIZE,
-            y: y / actualAtlasHeight,
-            width: TEXTURE_SIZE / ATLAS_SIZE,
-            height: TEXTURE_SIZE / actualAtlasHeight
-          }
-          
-          uvMapping[textureName] = uvCoords
-          
-          // Map block name to texture coordinates
-          const blockName = textureName.split('_')[0]
-          if (!blockTextures[blockName]) {
-            blockTextures[blockName] = []
-          }
-          blockTextures[blockName].push({
-            name: textureName,
-            uvs: uvCoords
-          })
-
-          // Move to next position
-          x += TEXTURE_SIZE
-          if (x + TEXTURE_SIZE > ATLAS_SIZE) {
-            x = 0
-            y += TEXTURE_SIZE
-            if (y + TEXTURE_SIZE > actualAtlasHeight) {
-              console.warn('Atlas height exceeded, some textures may be missing')
-              break
-            }
-          }
-
-          processedCount++
-          if (processedCount % 100 === 0) {
-            console.log(`Processed ${processedCount} textures...`)
-          }
-
-        } catch (error) {
-          console.warn(`Failed to process texture ${file}:`, error)
-          continue
-        }
-      }
-
-      console.log('Texture processing complete:', {
-        processedTextures: processedCount,
-        mappedBlocks: Object.keys(blockTextures).length,
-        uvMappings: Object.keys(uvMapping).length
-      })
-
-      // Create Three.js texture
-      const textureAtlas = new THREE.CanvasTexture(atlasCanvas)
-      textureAtlas.magFilter = THREE.NearestFilter
-      textureAtlas.minFilter = THREE.NearestFilter
-      textureAtlas.generateMipmaps = false
-      textureAtlas.flipY = false // Important for correct UV mapping
-      textureAtlas.needsUpdate = true
-
-      // Store texture information in userData
-      textureAtlas.userData = {
-        uvMapping,
-        textureSize: TEXTURE_SIZE,
-        atlasSize: { width: ATLAS_SIZE, height: actualAtlasHeight }
-      }
-
-      // Set up viewer world properties
-      viewer.world.textureAtlas = textureAtlas
-      viewer.world.atlas = textureAtlas  // Add this line
-      viewer.world.textureUvMap = uvMapping
-      viewer.world.blockType = mcModules.Block
-      viewer.world.material.map = textureAtlas
-      viewer.world.material.needsUpdate = true
-      viewer.world.blockTextures = blockTextures
-      viewer.world.textures = blockTextures
-
-      console.log('Debug: Atlas creation:', {
-        atlasWidth: atlasCanvas.width,
-        atlasHeight: atlasCanvas.height,
-        textureSize: TEXTURE_SIZE,
-        mappingsCount: Object.keys(uvMapping).length,
-        hasAtlas: !!textureAtlas,
-        textureValid: !!textureAtlas?.image
-      })
-
-      console.log('Debug: World state:', {
-        version: VERSION,
-        hasBlockStates: !!viewer.world.blockStates,
-        hasTextures: !!viewer.world.textures,
-        hasTextureAtlas: !!viewer.world.textureAtlas,
-        textureCount: Object.keys(uvMapping).length,
-        blockStatesCount: Object.keys(viewer.world.blockStates || {}).length,
-        blockTexturesCount: Object.keys(blockTextures).length,
-        atlasSize: ATLAS_SIZE,
-        textureSize: TEXTURE_SIZE
-      })
-
-      console.log('Processing NBT data...')
-      const { world, size } = await processNBT(buffer, mcModules)
-      console.log('NBT data processed. Structure size:', size)
+      await exportGLTF(viewer.scene, fileName)
+      console.log(`Successfully exported to: ./gltf_out/${fileName}`)
       
-      const center = new Vec3(
-        Math.floor(size.x / 2),
-        Math.floor(size.y / 2),
-        Math.floor(size.z / 2)
-      )
-      console.log('Center calculated:', center)
-      
-      console.log('Setting up scene...')
-      setupScene(viewer, size)
-      
-      console.log('Setting up world view...')
-      const worldView = new EnhancedWorldView(
-        world,
-        VIEWPORT.viewDistance,
-        center,
-        viewer.scene,
-        mcModules.mcData
-      )
-
-      worldView.worker.setAtlas(textureAtlas, uvMapping)
-
-      await worldView.init(center)
-      viewer.listen(worldView)
-      
-      console.log('Generating meshes...')
-      const meshCount = await worldView.generateMeshes()
-      console.log('Meshes generated:', meshCount)
-      
-      console.log('Waiting for meshes...')
-      await new Promise(resolve => setTimeout(resolve, 5000))
-      
-      // Render and export
-      const fileName = `minecraft_structure_${Date.now()}.gltf`
-      
-      try {
-        console.log('Starting render...')
-        renderer.render(viewer.scene, viewer.camera)
-        console.log('Render complete')
-        
-        console.log('Starting GLTF export...')
-        console.log('Debug: Checking texture atlas state:')
-        console.log('viewer.world:', viewer.world ? 'exists' : 'missing')
-        console.log('viewer.world.textureAtlas:', viewer.world?.textureAtlas ? 'exists' : 'missing')
-        console.log('viewer.world.atlas:', viewer.world?.atlas ? 'exists' : 'missing')
-        
-        // Ensure output directory exists
-        await fs.mkdir('./gltf_out', { recursive: true })
-        
-        // Save texture atlas
-        if (viewer.world.textureAtlas?.image) {
-          console.log('Saving texture atlas...')
-          const textureAtlasCanvas = viewer.world.textureAtlas.image
-          const stream = textureAtlasCanvas.createPNGStream()
-          const outputPath = path.join('./gltf_out', 'atlas.png')
-          
-          await pipeline(
-            stream,
-            createWriteStream(outputPath)
-          )
-          
-          console.log('Texture atlas saved')
-        } else {
-          console.warn('No texture atlas image found to save')
-        }
-        
-        console.log('Exporting GLTF...')
-        await exportGLTF(viewer.scene, fileName)
-        
-        console.log(`Successfully exported to: ./gltf_out/${fileName}`)
-        console.log('Export complete')
-      } catch (error) {
-        console.error('Error during render/export:', error)
-        throw error
-      }
-
     } catch (error) {
-      console.error('Failed during processing:', error)
+      console.error('Error during render/export:', error)
       throw error
     }
     
     process.exit(0)
   } catch (error) {
-    console.error('Error in main:', error)
-    console.error('Stack trace:', error.stack)
+    console.error('Error in main:', error, {
+      stack: error.stack
+    })
     process.exit(1)
   }
 }
